@@ -1,0 +1,14 @@
+# Pre-Wedding Photoshoot Generator Requirements
+
+# AWS SDK for S3 uploads
+boto3>=1.28.0
+
+# HTTP requests for API calls
+requests>=2.31.0
+
+# Image processing
+Pillow>=10.0.0
+
+# Google Gemini AI SDK
+google-genai>=0.2.0
+

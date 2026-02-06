@@ -16,7 +16,7 @@ class Settings(BaseSettings):
     
     # Server Configuration
     host: str = Field(default="0.0.0.0", alias="HOST")
-    port: int = Field(default=8000, alias="PORT")
+    port: int = Field(default=8020, alias="PORT")
     
     # MongoDB Configuration
     mongodb_uri: str = Field(..., alias="MONGODB_URI")

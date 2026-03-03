@@ -117,6 +117,36 @@ async def create_indexes():
             name="user_created_idx"
         )
 
+        # Credit Transactions collection indexes
+        credit_transactions_collection = mongodb_client.database.credit_transactions
+        await credit_transactions_collection.create_index(
+            [("user_id", ASCENDING)],
+            name="user_id_idx"
+        )
+        await credit_transactions_collection.create_index(
+            [("generation_id", ASCENDING)],
+            name="generation_id_idx"
+        )
+        await credit_transactions_collection.create_index(
+            [("created_at", ASCENDING)],
+            name="created_at_idx"
+        )
+
+        # Contact Us collection indexes
+        contact_us_collection = mongodb_client.database.contact_us
+        await contact_us_collection.create_index(
+            [("user_id", ASCENDING)],
+            name="user_id_idx"
+        )
+        await contact_us_collection.create_index(
+            [("status", ASCENDING)],
+            name="status_idx"
+        )
+        await contact_us_collection.create_index(
+            [("created_at", ASCENDING)],
+            name="created_at_idx"
+        )
+
         logger.info("Database indexes created successfully")
         
     except Exception as e:

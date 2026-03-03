@@ -44,6 +44,7 @@ async def create_template(
             pass_image_url=request.pass_image_url,
             pose_details=request.pose_details,
             cloths_details=request.cloths_details,
+            category=request.category,
             aspect_ratio=request.aspect_ratio
         )
         

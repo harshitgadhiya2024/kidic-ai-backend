@@ -15,6 +15,7 @@ class TemplateModel:
         pass_image_url: str,
         pose_details: str,
         cloths_details: str,
+        category: str,
         aspect_ratio: str,
     ) -> dict:
         """Create a new template document"""
@@ -25,6 +26,7 @@ class TemplateModel:
             "pose_details": pose_details,
             "cloths_details": cloths_details,
             "aspect_ratio": aspect_ratio,
+            "category": category,
             "is_active": True,
             "created_at": now,
             "updated_at": now,

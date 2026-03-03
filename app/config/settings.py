@@ -60,7 +60,7 @@ class Settings(BaseSettings):
     )
     
     # User Settings
-    default_user_credits: int = Field(default=10, alias="DEFAULT_USER_CREDITS")
+    default_user_credits: int = Field(default=1, alias="DEFAULT_USER_CREDITS")
 
     # AI Image Generation API Configuration
     # Seeddream API (Primary)

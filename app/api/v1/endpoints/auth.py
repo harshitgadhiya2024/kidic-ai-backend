@@ -1,10 +1,13 @@
 """Authentication endpoints"""
 
 import logging
+import asyncio
 from fastapi import APIRouter, Depends, HTTPException, status, BackgroundTasks
 from motor.motor_asyncio import AsyncIOMotorDatabase
 from app.core.dependencies import get_db, get_current_user
 from app.core.security import verify_token
+from app.models.photoshoot_generation import PhotoshootGenerationModel
+from app.models.credit_transaction import CreditTransactionModel
 from app.schemas.auth import (
     SendOTPRequest,
     VerifyOTPRequest,
@@ -122,14 +125,44 @@ async def verify_otp(
 
 @router.get("/me", response_model=dict, status_code=status.HTTP_200_OK)
 async def get_current_user_info(
-    current_user: dict = Depends(get_current_user)
+    current_user: dict = Depends(get_current_user),
+    db: AsyncIOMotorDatabase = Depends(get_db)
 ):
     """
     Get current authenticated user information
-    
+
     Requires valid JWT access token in Authorization header.
+    Returns user profile along with total photoshoots generated and total credits used.
     """
-    return current_user
+    try:
+        user_id = current_user.get("id")
+
+        generations_collection = db[PhotoshootGenerationModel.COLLECTION_NAME]
+        credit_transactions_collection = db[CreditTransactionModel.COLLECTION_NAME]
+
+        # Run both counts in parallel
+        total_photoshoots, credits_used_agg = await asyncio.gather(
+            generations_collection.count_documents({"user_id": user_id}),
+            credit_transactions_collection.aggregate([
+                {"$match": {"user_id": user_id, "type": CreditTransactionModel.TYPE_DEBIT}},
+                {"$group": {"_id": None, "total": {"$sum": "$amount"}}}
+            ]).to_list(length=1)
+        )
+
+        total_credits_used = credits_used_agg[0]["total"] if credits_used_agg else 0
+
+        return {
+            **current_user,
+            "total_photoshoots_generated": total_photoshoots,
+            "total_credits_used": total_credits_used,
+        }
+
+    except Exception as e:
+        logger.error(f"Error fetching user info for {current_user.get('id')}: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to fetch user information"
+        )
 
 
 @router.patch("/me", response_model=dict, status_code=status.HTTP_200_OK)

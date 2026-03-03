@@ -6,6 +6,7 @@ from motor.motor_asyncio import AsyncIOMotorDatabase
 from bson import ObjectId
 
 from app.core.dependencies import get_db, get_current_user
+from app.models.user import UserModel
 from app.models.photoshoot_generation import PhotoshootGenerationModel
 from app.schemas.photoshoot import (
     PhotoshootGenerationResponse,
@@ -82,6 +83,15 @@ async def generate_kid_photoshoot(
                 detail="File is empty"
             )
         
+        # Check user credits
+        users_collection = db[UserModel.COLLECTION_NAME]
+        user = await users_collection.find_one({"_id": ObjectId(current_user.get("id"))})
+        if not user or user.get("credits", 0) < 1:
+            raise HTTPException(
+                status_code=status.HTTP_402_PAYMENT_REQUIRED,
+                detail="Insufficient credits. Please recharge to continue generating photoshoots."
+            )
+
         # Step 1: Get template data
         template = await photoshoot_service.get_template_by_id(template_id)
         if not template:
@@ -195,6 +205,106 @@ async def generate_kid_photoshoot(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Internal server error: {str(e)}"
+        )
+
+
+@router.patch("/{generation_id}/favourite", response_model=dict, status_code=status.HTTP_200_OK)
+async def mark_generation_as_favourite(
+    generation_id: str,
+    current_user: dict = Depends(get_current_user),
+    db: AsyncIOMotorDatabase = Depends(get_db)
+):
+    """
+    Mark a photoshoot generation as favourite
+
+    - **generation_id**: ID of the generation to mark as favourite
+
+    Only the owner of the generation can mark it as favourite.
+    """
+    try:
+        generations_collection = db[PhotoshootGenerationModel.COLLECTION_NAME]
+
+        result = await generations_collection.update_one(
+            {
+                "_id": ObjectId(generation_id),
+                "user_id": current_user.get("id")
+            },
+            PhotoshootGenerationModel.mark_as_favorite()
+        )
+
+        if result.matched_count == 0:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Generation not found"
+            )
+
+        updated_generation = await generations_collection.find_one({"_id": ObjectId(generation_id)})
+
+        logger.info(f"Generation {generation_id} marked as favourite by user {current_user.get('id')}")
+
+        return {
+            "success": True,
+            "message": "Generation marked as favourite",
+            "generation": PhotoshootGenerationModel.serialize_generation(updated_generation)
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error marking generation as favourite: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to mark generation as favourite"
+        )
+
+
+@router.patch("/{generation_id}/unfavourite", response_model=dict, status_code=status.HTTP_200_OK)
+async def mark_generation_as_unfavourite(
+    generation_id: str,
+    current_user: dict = Depends(get_current_user),
+    db: AsyncIOMotorDatabase = Depends(get_db)
+):
+    """
+    Unmark a photoshoot generation as favourite
+
+    - **generation_id**: ID of the generation to unmark as favourite
+
+    Only the owner of the generation can unmark it as favourite.
+    """
+    try:
+        generations_collection = db[PhotoshootGenerationModel.COLLECTION_NAME]
+
+        result = await generations_collection.update_one(
+            {
+                "_id": ObjectId(generation_id),
+                "user_id": current_user.get("id")
+            },
+            PhotoshootGenerationModel.mark_as_unfavorite()
+        )
+
+        if result.matched_count == 0:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Generation not found"
+            )
+
+        updated_generation = await generations_collection.find_one({"_id": ObjectId(generation_id)})
+
+        logger.info(f"Generation {generation_id} unmarked as favourite by user {current_user.get('id')}")
+
+        return {
+            "success": True,
+            "message": "Generation unmarked as favourite",
+            "generation": PhotoshootGenerationModel.serialize_generation(updated_generation)
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error unmarking generation as favourite: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to unmark generation as favourite"
         )
 
 

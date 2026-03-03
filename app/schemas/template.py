@@ -10,6 +10,7 @@ class CreateTemplateRequest(BaseModel):
     pass_image_url: str = Field(..., description="Pass image URL")
     pose_details: str = Field(..., description="Pose details description")
     cloths_details: str = Field(..., description="Clothes details description")
+    category: str = Field(..., description="template category")
     aspect_ratio: str = Field(..., description="Aspect ratio (e.g., '16:9', '1:1', '4:3')")
     
     class Config:
@@ -19,6 +20,7 @@ class CreateTemplateRequest(BaseModel):
                 "pass_image_url": "https://example.com/pass-image.jpg",
                 "pose_details": "Standing pose with arms crossed",
                 "cloths_details": "Casual t-shirt and jeans",
+                "category": "Modern",
                 "aspect_ratio": "16:9"
             }
         }
@@ -30,13 +32,15 @@ class UpdateTemplateRequest(BaseModel):
     pass_image_url: Optional[str] = Field(None, description="Pass image URL")
     pose_details: Optional[str] = Field(None, description="Pose details description")
     cloths_details: Optional[str] = Field(None, description="Clothes details description")
+    category: str = Field(..., description="template category")
     aspect_ratio: Optional[str] = Field(None, description="Aspect ratio")
     
     class Config:
         json_schema_extra = {
             "example": {
                 "pose_details": "Updated pose description",
-                "cloths_details": "Updated clothes description"
+                "cloths_details": "Updated clothes description",
+                "category": "Modern"
             }
         }
 
@@ -49,6 +53,7 @@ class TemplateResponse(BaseModel):
     pose_details: str
     cloths_details: str
     aspect_ratio: str
+    category: str
     is_active: bool
     created_at: str
     updated_at: str

@@ -13,6 +13,8 @@ from google.genai import types
 
 from app.models.photoshoot_generation import PhotoshootGenerationModel
 from app.models.template import TemplateModel
+from app.models.user import UserModel
+from app.models.credit_transaction import CreditTransactionModel
 from app.services.s3_service import s3_service
 from app.config import settings
 
@@ -26,9 +28,30 @@ class PhotoshootService:
         self.db = db
         self.generations_collection = db[PhotoshootGenerationModel.COLLECTION_NAME]
         self.templates_collection = db[TemplateModel.COLLECTION_NAME]
+        self.users_collection = db[UserModel.COLLECTION_NAME]
+        self.credit_transactions_collection = db[CreditTransactionModel.COLLECTION_NAME]
 
         # Initialize Gemini client
         self.gemini_client = genai.Client(api_key=settings.gemini_api_key)
+
+    async def _deduct_credit(self, user_id: str, generation_id: str):
+        """Deduct 1 credit from the user and record the transaction"""
+        try:
+            await self.users_collection.update_one(
+                {"_id": ObjectId(user_id)},
+                {"$inc": {"credits": -1}}
+            )
+
+            transaction_doc = CreditTransactionModel.create_debit_document(
+                user_id=user_id,
+                generation_id=generation_id,
+                reason=CreditTransactionModel.REASON_PHOTOSHOOT_GENERATION,
+            )
+            await self.credit_transactions_collection.insert_one(transaction_doc)
+
+            logger.info(f"1 credit deducted for user {user_id}, generation {generation_id}")
+        except Exception as e:
+            logger.error(f"Failed to deduct credit for user {user_id}, generation {generation_id}: {str(e)}")
     
     async def get_template_by_id(self, template_id: str) -> Optional[dict]:
         """Get template by ID"""
@@ -324,9 +347,13 @@ class PhotoshootService:
                             # Update database with success
                             await self.generations_collection.update_one(
                                 {"_id": ObjectId(generation_id)},
-                                PhotoshootGenerationModel.mark_as_completed(s3_url)
+                                PhotoshootGenerationModel.mark_as_completed(
+                                    s3_url,
+                                    model_used=PhotoshootGenerationModel.MODEL_SEEDDREAM
+                                )
                             )
                             logger.info(f"Generation {generation_id} marked as completed")
+                            await self._deduct_credit(user_id, generation_id)
                         else:
                             # Failed to upload to S3
                             await self.generations_collection.update_one(
@@ -354,9 +381,13 @@ class PhotoshootService:
                             # Update database with Gemini result
                             await self.generations_collection.update_one(
                                 {"_id": ObjectId(generation_id)},
-                                PhotoshootGenerationModel.mark_as_completed(s3_url)
+                                PhotoshootGenerationModel.mark_as_completed(
+                                    s3_url,
+                                    model_used=PhotoshootGenerationModel.MODEL_GEMINI
+                                )
                             )
                             logger.info(f"Generation {generation_id} completed with Gemini fallback")
+                            await self._deduct_credit(user_id, generation_id)
                         else:
                             # Both Seeddream and Gemini failed
                             await self.generations_collection.update_one(
@@ -393,9 +424,13 @@ class PhotoshootService:
                 # Update database with Gemini result
                 await self.generations_collection.update_one(
                     {"_id": ObjectId(generation_id)},
-                    PhotoshootGenerationModel.mark_as_completed(s3_url)
+                    PhotoshootGenerationModel.mark_as_completed(
+                        s3_url,
+                        model_used=PhotoshootGenerationModel.MODEL_GEMINI
+                    )
                 )
                 logger.info(f"Generation {generation_id} completed with Gemini fallback after timeout")
+                await self._deduct_credit(user_id, generation_id)
             else:
                 # Both timeout and Gemini failed
                 await self.generations_collection.update_one(
@@ -422,9 +457,13 @@ class PhotoshootService:
                 if success and s3_url:
                     await self.generations_collection.update_one(
                         {"_id": ObjectId(generation_id)},
-                        PhotoshootGenerationModel.mark_as_completed(s3_url)
+                        PhotoshootGenerationModel.mark_as_completed(
+                            s3_url,
+                            model_used=PhotoshootGenerationModel.MODEL_GEMINI
+                        )
                     )
                     logger.info(f"Generation {generation_id} completed with Gemini fallback after error")
+                    await self._deduct_credit(user_id, generation_id)
                 else:
                     await self.generations_collection.update_one(
                         {"_id": ObjectId(generation_id)},

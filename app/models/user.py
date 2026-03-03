@@ -14,7 +14,7 @@ class UserModel:
     def create_user_document(
         email: str,
         username: str,
-        credits: int = 10,
+        credits: int = 1,
         profile_picture: Optional[str] = None,
     ) -> dict:
         """Create a new user document"""

@@ -14,7 +14,11 @@ class PhotoshootGenerationModel:
     STATUS_PROCESSING = "processing"
     STATUS_COMPLETED = "completed"
     STATUS_FAILED = "failed"
-    
+
+    # Model constants
+    MODEL_SEEDDREAM = "seeddream"
+    MODEL_GEMINI = "gemini"
+
     @staticmethod
     def create_generation_document(
         user_id: str,
@@ -30,6 +34,8 @@ class PhotoshootGenerationModel:
             "template_id": template_id,
             "kid_image_url": kid_image_url,
             "task_id": task_id,
+            "is_favorite": False,
+            "model_used": None,
             "status": status,
             "result_url": None,
             "error_message": None,
@@ -57,17 +63,38 @@ class PhotoshootGenerationModel:
         }
     
     @staticmethod
-    def mark_as_completed(result_url: str) -> dict:
+    def mark_as_completed(result_url: str, model_used: Optional[str] = None) -> dict:
         """Create an update document to mark generation as completed"""
         return {
             "$set": {
                 "status": PhotoshootGenerationModel.STATUS_COMPLETED,
                 "result_url": result_url,
+                "model_used": model_used,
                 "completed_at": datetime.utcnow(),
                 "updated_at": datetime.utcnow()
             }
         }
     
+    @staticmethod
+    def mark_as_favorite() -> dict:
+        """Create an update document to mark generation as favourite"""
+        return {
+            "$set": {
+                "is_favorite": True,
+                "updated_at": datetime.utcnow()
+            }
+        }
+
+    @staticmethod
+    def mark_as_unfavorite() -> dict:
+        """Create an update document to unmark generation as favourite"""
+        return {
+            "$set": {
+                "is_favorite": False,
+                "updated_at": datetime.utcnow()
+            }
+        }
+
     @staticmethod
     def mark_as_failed(error_message: str) -> dict:
         """Create an update document to mark generation as failed"""

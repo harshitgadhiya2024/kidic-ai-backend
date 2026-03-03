@@ -23,6 +23,8 @@ class PhotoshootGenerationResponse(BaseModel):
     template_id: str
     kid_image_url: str
     task_id: Optional[str] = None
+    is_favorite: bool = False
+    model_used: Optional[str] = None
     status: str
     result_url: Optional[str] = None
     error_message: Optional[str] = None

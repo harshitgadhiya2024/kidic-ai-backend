@@ -73,6 +73,14 @@ class Settings(BaseSettings):
         default="https://api.kie.ai/api/v1/jobs/recordInfo",
         alias="SEEDDREAM_GET_TASK_URL"
     )
+    seeddream_model: str = Field(
+        default="seedream/4.5-edit",
+        alias="SEEDDREAM_MODEL"
+    )
+    seeddream_quality: str = Field(
+        default="high",
+        alias="SEEDDREAM_QUALITY"
+    )
 
     # Gemini API (Fallback)
     gemini_api_key: str = Field(..., alias="GEMINI_API_KEY")

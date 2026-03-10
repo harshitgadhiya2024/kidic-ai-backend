@@ -172,17 +172,12 @@ async def generate_kid_photoshoot(
 
         logger.info(f"Generation {generation_id} marked as processing with task_id: {task_id}")
 
-        # Step 4: Start background polling (with Gemini fallback parameters)
+        # Step 4: Start background polling
         background_tasks.add_task(
             photoshoot_service.poll_task_result,
             task_id=task_id,
             generation_id=generation_id,
             user_id=current_user.get('id'),
-            kid_image_url=kid_image_url,
-            pass_image_url=pass_image_url,
-            aspect_ratio=aspect_ratio,
-            cloths_details=cloths_details,
-            pose_details=pose_details
         )
 
         logger.info(f"Background polling started for task {task_id}")

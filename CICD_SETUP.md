@@ -31,10 +31,15 @@ SSH into your EC2 instance first:
 ssh -i your-key.pem ubuntu@<EC2_PUBLIC_IP>
 ```
 
-### 1.1 Update system & install Python
+### 1.1 Update system & install Python 3.11
+
+Ubuntu's default repos may not include Python 3.11. Add the `deadsnakes` PPA first:
 
 ```bash
 sudo apt update && sudo apt upgrade -y
+sudo apt install -y software-properties-common
+sudo add-apt-repository ppa:deadsnakes/ppa -y
+sudo apt update
 sudo apt install -y python3.11 python3.11-venv python3.11-dev git
 ```
 
@@ -247,6 +252,7 @@ Expected response:
 
 | Problem | Fix |
 |---------|-----|
+| `Unable to locate package python3.11` | Run `sudo add-apt-repository ppa:deadsnakes/ppa -y && sudo apt update` then retry install |
 | Workflow fails at SSH step | Check `EC2_HOST`, `EC2_USER`, `EC2_SSH_KEY` secrets are correct |
 | App not starting | Run `sudo journalctl -u kidic-ai -n 50` on EC2 to see errors |
 | Port 8020 not accessible | Check EC2 Security Group inbound rules |

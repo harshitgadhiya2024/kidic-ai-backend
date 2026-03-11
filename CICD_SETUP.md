@@ -152,7 +152,91 @@ Save and exit.
 
 ---
 
-## Part 3 — AWS Security Group
+## Part 3 — Nginx Setup (Reverse Proxy)
+
+Nginx sits in front of your FastAPI app and forwards requests from port 80/443 to port 8020.
+
+### 3.1 Install Nginx
+
+```bash
+sudo apt install -y nginx
+```
+
+### 3.2 Create Nginx config for the app
+
+```bash
+sudo nano /etc/nginx/sites-available/kidic-ai
+```
+
+Paste the following (replace `your-domain.com` with your actual domain or EC2 public IP):
+
+```nginx
+server {
+    listen 80;
+    server_name your-domain.com;
+
+    # Max upload size (for kid image uploads)
+    client_max_body_size 50M;
+
+    location / {
+        proxy_pass http://127.0.0.1:8020;
+        proxy_http_version 1.1;
+
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+
+        # Timeouts (important for long-running generation requests)
+        proxy_connect_timeout 60s;
+        proxy_send_timeout    300s;
+        proxy_read_timeout    300s;
+    }
+}
+```
+
+Save and exit (`Ctrl+X → Y → Enter`).
+
+### 3.3 Enable the site and disable the default
+
+```bash
+sudo ln -s /etc/nginx/sites-available/kidic-ai /etc/nginx/sites-enabled/
+sudo rm -f /etc/nginx/sites-enabled/default
+```
+
+### 3.4 Test and reload Nginx
+
+```bash
+sudo nginx -t
+sudo systemctl reload nginx
+sudo systemctl enable nginx
+```
+
+You should see:
+```
+nginx: the configuration file /etc/nginx/nginx.conf syntax is ok
+nginx: configuration file /etc/nginx/nginx.conf test is successful
+```
+
+### 3.5 (Optional) Add HTTPS with Let's Encrypt — Free SSL
+
+If you have a domain name pointing to your EC2:
+
+```bash
+sudo apt install -y certbot python3-certbot-nginx
+sudo certbot --nginx -d your-domain.com
+```
+
+Follow the prompts. Certbot will automatically update your Nginx config with SSL and set up auto-renewal.
+
+Verify auto-renewal works:
+```bash
+sudo certbot renew --dry-run
+```
+
+---
+
+## Part 4 — AWS Security Group
 
 In the AWS Console:
 
@@ -161,10 +245,13 @@ In the AWS Console:
 3. Click **Edit inbound rules → Add rule**
 4. Add:
 
-| Type | Protocol | Port | Source |
-|------|----------|------|--------|
-| Custom TCP | TCP | 8020 | 0.0.0.0/0 |
-| SSH | TCP | 22 | Your IP (or 0.0.0.0/0) |
+| Type | Protocol | Port | Source | Purpose |
+|------|----------|------|--------|---------|
+| HTTP | TCP | 80 | 0.0.0.0/0 | Public HTTP via Nginx |
+| HTTPS | TCP | 443 | 0.0.0.0/0 | Public HTTPS via Nginx (SSL) |
+| SSH | TCP | 22 | Your IP | SSH access |
+
+> **Note:** Port 8020 does NOT need to be open publicly. Nginx forwards traffic from port 80/443 to 8020 internally on the server.
 
 5. Click **Save rules**
 
@@ -212,20 +299,43 @@ Once everything is set up, every push to `main`:
 ## Useful Commands on EC2
 
 ```bash
-# View live logs
+# --- App (systemd) ---
+
+# View live app logs
 sudo journalctl -u kidic-ai -f
 
-# View last 100 lines of logs
+# View last 100 lines of app logs
 sudo journalctl -u kidic-ai -n 100
 
 # Restart the app manually
 sudo systemctl restart kidic-ai
 
-# Stop the app
+# Stop / start the app
 sudo systemctl stop kidic-ai
+sudo systemctl start kidic-ai
 
 # Check app status
 sudo systemctl status kidic-ai
+
+# --- Nginx ---
+
+# Test Nginx config
+sudo nginx -t
+
+# Reload Nginx (after config changes)
+sudo systemctl reload nginx
+
+# Restart Nginx
+sudo systemctl restart nginx
+
+# Check Nginx status
+sudo systemctl status nginx
+
+# View Nginx access logs
+sudo tail -f /var/log/nginx/access.log
+
+# View Nginx error logs
+sudo tail -f /var/log/nginx/error.log
 ```
 
 ---
@@ -235,10 +345,12 @@ sudo systemctl status kidic-ai
 After a push to `main`, check:
 
 1. **GitHub Actions tab** in your repo — the workflow should show a green checkmark
-2. **API health check:**
+2. **API health check via Nginx (port 80):**
 
 ```bash
-curl http://<EC2_PUBLIC_IP>:8020/health
+curl http://<EC2_PUBLIC_IP>/health
+# or with domain:
+curl http://your-domain.com/health
 ```
 
 Expected response:
@@ -255,7 +367,10 @@ Expected response:
 | `Unable to locate package python3.11` | Run `sudo add-apt-repository ppa:deadsnakes/ppa -y && sudo apt update` then retry install |
 | Workflow fails at SSH step | Check `EC2_HOST`, `EC2_USER`, `EC2_SSH_KEY` secrets are correct |
 | App not starting | Run `sudo journalctl -u kidic-ai -n 50` on EC2 to see errors |
-| Port 8020 not accessible | Check EC2 Security Group inbound rules |
 | `sudo systemctl restart` fails | Make sure the `visudo` passwordless entry is added (Part 2.4) |
 | `pip install` fails | SSH into EC2 and run manually to see the error |
 | `.env` missing variables | Update the `ENV_FILE` GitHub secret with the latest `.env` content |
+| Nginx 502 Bad Gateway | App is not running — check `sudo systemctl status kidic-ai` |
+| Nginx config error | Run `sudo nginx -t` to see the exact error |
+| SSL cert fails | Make sure your domain's DNS A record points to the EC2 IP |
+| Large file upload fails (413) | Increase `client_max_body_size` in the Nginx config |

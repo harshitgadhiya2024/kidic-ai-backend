@@ -7,7 +7,7 @@ on:
 
 jobs:
   deploy:
-    name: Build & Deploy
+    name: Deploy
     runs-on: ubuntu-latest
 
     steps:
@@ -26,24 +26,22 @@ jobs:
 
             APP_DIR="/home/${{ secrets.EC2_USER }}/kidic-ai"
 
-            # Clone repo if not exists, otherwise pull latest
+            # Clone repo if it doesn't exist, otherwise pull latest
             if [ ! -d "$APP_DIR" ]; then
               git clone https://github.com/harshitgadhiya2024/kidic-ai-backend.git "$APP_DIR"
-            else
-              cd "$APP_DIR"
-              git pull origin main
             fi
 
             cd "$APP_DIR"
+            git pull origin main
 
             # Write .env file from GitHub secret
             echo "${{ secrets.ENV_FILE }}" > .env
 
-            # Build and restart Docker container
-            docker compose down --remove-orphans || true
-            docker compose up -d --build
+            # Activate virtualenv and install/update dependencies
+            source venv/bin/activate
+            pip install -r requirements.txt --quiet
 
-            # Remove unused Docker images to free disk space
-            docker image prune -f
+            # Restart the app via systemd
+            sudo systemctl restart kidic-ai
 
             echo "Deployment completed successfully"

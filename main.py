@@ -87,7 +87,7 @@ async def health_check():
 async def root():
     """Root endpoint with API information"""
     return {
-        "message": "Welcome to Kidic AI API",
+        "message": "Welcome to Kidic AI API 🚀",
         "version": settings.app_version,
         "docs": "/docs",
         "health": "/health"
